@@ -33,6 +33,16 @@ against the anergistic emulator. The two implementations gate each other. Built 
 Runs `lv1`'s isolate-load handler chain under Unicorn with catch-and-mock on a 970FX (Cell PPE lineage)
 core — no console, no reboot loop. This is what replaced *push → launch → RSOD → repeat*.
 
+`staticlive.py` answers the question that kept invalidating offline runs: **what does the running
+hypervisor hold that the ELF does not?** An emulator that demand-maps unseeded memory as zero pages
+is *green exactly where the hardware machine-checks* — so a chain can "complete offline" while
+walking pointers that do not exist. This diffs the static image against a live read, follows every
+plausible pointer (not only ones whose own value already differs — the divergence is usually one hop
+deeper), and recovers `r2`-relative globals straight from the disassembly, which has full coverage
+where tracing a shimmed run does not. On our target 8 of 19 globals on the path under study were
+null in the ELF and populated at boot; six of those had been silently read as zero in every offline
+run we had trusted. Needs two console-side helpers you supply yourself (see the file header).
+
 ### `isoldr-harness/` — isolation-loader harness
 Boots a real `isoldr` under the extended anergistic, clears its loader-channel **version handshake**
 (the gate that stops most attempts), and drives the isolated-module argument staging — all offline.
@@ -44,6 +54,16 @@ variable-length copy into a stack frame smaller than the copy can be.
 ### `analysis/` — static-analysis odds and ends
 `lv1` ELF/segment parsing, SPU CFG + callgraph, SS symbol mapping, SCE metadata readout, stack-copy
 scanning, string naming.
+
+`notedb.py` indexes an append-only research log and makes **supersession queryable**. Long RE
+projects retract themselves constantly — a note written on Tuesday overturns Monday's — and flat
+files cannot express that, so the older conclusion keeps getting quoted as current. This builds a
+SQLite index over `notes/NNN-*.md` carrying per-note *status* (closed / retracted / negative) and a
+supersession *graph*, joined on hex addresses because vocabulary drifts and `0x2b80a8` does not.
+`verdict <term>` separates live findings from overturned ones; `stale` lists every note a later note
+killed. Written after a session spent re-deriving results the log already held, because keyword
+search returned every note **except** the ones that had closed the question — they discussed it in
+different words.
 
 ---
 
