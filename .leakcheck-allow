@@ -1,0 +1,6 @@
+# Extra text formats this repository uses. The gate's allowlist is strict by
+# default; declaring an exception here keeps it visible in a diff instead of
+# hidden in the scanner. One extension or filename per line.
+
+instrs      # anergistic's SPU instruction table -- ASCII, the source that
+            # emulate-instrs.{c,h} are GENERATED from

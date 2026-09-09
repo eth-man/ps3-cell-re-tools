@@ -38,12 +38,13 @@ import sys
 ALLOWED_EXT = {
     ".md", ".yml", ".yaml", ".json", ".txt", ".py", ".c", ".h", ".s", ".S",
     ".sh", ".toml", ".cfg", ".ini", ".csv", ".tsv", ".gitignore",
-    ".gitattributes", ".sha256", ".editorconfig", ".java", ".mdc", ".mk",
+    ".gitattributes", ".sha256", ".editorconfig", ".java", ".mdc", ".mk", ".in",
 }
 ALLOWED_NAMES = {
     "LICENSE", "LICENSE-DATA", "AGENTS.md", "CLAUDE.md", "Makefile",
     "CODEOWNERS", ".gitignore", ".gitattributes", "SHA256SUMS", "re",
     "README", "COPYING", "NOTICE", "AUTHORS", "CHANGELOG", "INSTALL", "TODO",
+    ".leakcheck-allow",   # the allowlist file must itself be allowed
 }
 
 # Explicitly named, so the error message can say WHY rather than "bad type".
@@ -108,6 +109,27 @@ SECRET_WORD = re.compile(
     r"master[_ ]?key|per[- _]?console[_ ]?key|erk|riv|pub|ecdsa[_ ]?priv|"
     r"root[_ ]?key|syscon[_ ]?seed|token[_ ]?seed)\b", re.I)
 
+def load_local_allow(root="."):
+    """Extra allowed extensions/filenames, one per line, from .leakcheck-allow.
+
+    Keeps the allowlist STRICT by default while letting a project declare its
+    own text formats (anergistic's `instrs` table, say). The exception lives
+    in the repo where a reviewer sees it in the diff, instead of accumulating
+    in this file for every project that shares the gate.
+    """
+    path = os.path.join(root, ".leakcheck-allow")
+    if not os.path.isfile(path):
+        return set(), set()
+    exts, names = set(), set()
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            (exts if line.startswith(".") else names).add(line)
+    return exts, names
+
+
 MAX_TEXT_BYTES = 1_000_000     # a text file bigger than this is suspicious
 ENTROPY_MIN_LEN = 64           # only score long runs
 ENTROPY_THRESHOLD = 3.6        # bits/char; hex maxes at 4.0, prose ~2.5
@@ -147,7 +169,8 @@ class Violation:
         return f"  {loc}\n      [{self.rule}] {self.detail}"
 
 
-def check_type(path: str, rel: str):
+def check_type(path: str, rel: str, extra_ext=frozenset(),
+               extra_names=frozenset()):
     """Allowlist on file type. Everything not named as text is refused."""
     base = os.path.basename(rel)
     ext = os.path.splitext(base)[1].lower()
@@ -156,7 +179,8 @@ def check_type(path: str, rel: str):
         return [Violation(rel, 0, "denied-type",
                           f"{ext} = {DENY_EXT[ext]}. Rule 9: commit what you "
                           f"derived from it, never the artifact.")]
-    if base not in ALLOWED_NAMES and ext not in ALLOWED_EXT:
+    if (base not in ALLOWED_NAMES and ext not in ALLOWED_EXT
+            and base not in extra_names and ext not in extra_ext):
         return [Violation(rel, 0, "not-allowlisted",
                           f"'{ext or base}' is not an allowed text format. "
                           f"Add it to ALLOWED_EXT only if it is genuinely text.")]
@@ -318,6 +342,7 @@ def main():
         return 2
 
     targets = gather(args)
+    extra_ext, extra_names = load_local_allow()
     ignored = ignored_set() if args.all else set()
     violations, parked = [], []
     for path in targets:
@@ -331,7 +356,7 @@ def main():
             if ext in DENY_EXT:
                 parked.append((rel, DENY_EXT[ext]))
             continue
-        v = check_type(path, rel)
+        v = check_type(path, rel, extra_ext, extra_names)
         violations += v
         if v:
             continue                    # type refused; do not read content

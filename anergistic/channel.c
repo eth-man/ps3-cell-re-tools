@@ -52,6 +52,51 @@ static u32 sum32(const unsigned char *p, u32 n)
 	return h;
 }
 
+
+/* ===== PHASE 1 (notes/299): full MFC + channel transaction recorder =====
+ * ANERG_XLOG=<file>  append one JSON object per transaction.
+ *
+ * WHY: hand-tracing the isolation DMA path produced a wrong answer at least four
+ * times (notes/226->236, 231->240, 215->217, 219->220, 223->224). The protocol has
+ * to fall out of a recording, not out of reading disassembly. The existing
+ * [DMAnnn] printf lacks the ISSUING PC, which is the field that makes a trace
+ * attributable to code, so it is added here.
+ */
+static FILE *xlog = NULL;
+static int   xlog_tried = 0;
+static long  chan_seq = 0;
+
+static void xlog_open(void)
+{
+	const char *f;
+	xlog_tried = 1;
+	f = getenv("ANERG_XLOG");
+	if (f && *f) xlog = fopen(f, "w");
+}
+
+/* one JSON object per line -- greppable, and trivially loadable in python */
+static void xrec_dma(long seq, u32 pc, const char *op, u32 cmd, u32 lsa,
+                     u32 eah, u32 eal, u32 sz, u32 tag, u32 chk)
+{
+	if (!xlog_tried) xlog_open();
+	if (!xlog) return;
+	fprintf(xlog, "{\"k\":\"dma\",\"seq\":%ld,\"pc\":%u,\"op\":\"%s\",\"cmd\":%u,"
+	              "\"lsa\":%u,\"ea\":%llu,\"size\":%u,\"tag\":%u,\"sum\":%u}\n",
+	        seq, pc, op, cmd, lsa,
+	        (unsigned long long)(((unsigned long long)eah << 32) | eal), sz, tag, chk);
+	fflush(xlog);
+}
+
+static void xrec_chan(const char *dir, int ch, u32 pc, u32 val)
+{
+	if (!xlog_tried) xlog_open();
+	if (!xlog) return;
+	fprintf(xlog, "{\"k\":\"ch\",\"seq\":%ld,\"dir\":\"%s\",\"ch\":%d,"
+	              "\"pc\":%u,\"val\":%u}\n",
+	        chan_seq++, dir, ch, pc, val);
+	fflush(xlog);
+}
+
 void handle_mfc_command(u32 cmd)
 {
 	u32 lsa, sz, chk = 0;
@@ -110,6 +155,8 @@ void handle_mfc_command(u32 cmd)
 	printf("[DMA%03ld] %s LSA=%05x EA=%08x:%08x SIZE=%06x TAG=%x CMD=%02x SUM=%08x\n",
 	       dma_seq, isget ? "GET" : (isput ? "PUT" : "???"),
 	       lsa, MFC_EAH, MFC_EAL, sz, MFC_TagID, cmd, chk);
+	xrec_dma(dma_seq, ctx->pc, isget ? "GET" : (isput ? "PUT" : "???"),
+	         cmd, lsa, MFC_EAH, MFC_EAL, sz, MFC_TagID, chk);
 	/* harness: ANERG_POISON="<after_dma_n>:<ea_off>" -- flip a byte in EA AFTER
 	 * transfer n completes, to test time-of-check/time-of-use. */
 	{
@@ -122,6 +169,59 @@ void handle_mfc_command(u32 cmd)
 				if (off < ea_size) {
 					ea_mem[off] ^= 0x01;
 					printf("[POISON] flipped bit0 of EA %#zx after DMA%03ld\n", off, n);
+				}
+			}
+		}
+	}
+	/* --- harness: ANERG_EAPOKE="<after_dma_n>:<ea_off>:<hexbytes>[,...]"
+	   After DMA n completes, overwrite EA bytes at <ea_off>. This is the
+	   generalisation of ANERG_POISON (which flips a single bit) and it exists
+	   for ONE reason: notes/18 established that sv_iso speaks a STATEFUL
+	   protocol -- the dispatcher gate at 0x1948 requires frame+0x1b0 == 0x2101,
+	   a value the module writes itself during a PREVIOUS command in the same
+	   session. Single-shot runs can never satisfy it (notes/305). A session
+	   needs a DIFFERENT command packet for each exchange, but ANERG_EA is a
+	   static image, so the packet must be rewritten in place between the
+	   module's header reads. --- */
+	{
+		static int ep_init = 0;
+		enum { EP_MAX = 16 };
+		static long epn[EP_MAX]; static size_t epoff[EP_MAX];
+		static unsigned char *epbuf[EP_MAX]; static long eplen[EP_MAX];
+		static int epc = 0;
+		if (!ep_init) {
+			const char *e = getenv("ANERG_EAPOKE");
+			ep_init = 1;
+			if (e) {
+				char tmp[4096]; char *t;
+				strncpy(tmp, e, sizeof tmp - 1); tmp[sizeof tmp - 1] = 0;
+				for (t = strtok(tmp, ","); t && epc < EP_MAX; t = strtok(NULL, ",")) {
+					char *c1 = strchr(t, ':'), *c2;
+					if (!c1) continue;
+					c2 = strchr(c1 + 1, ':');
+					if (!c2) continue;
+					*c1 = *c2 = 0;
+					epn[epc]   = strtol(t, NULL, 0);
+					epoff[epc] = (size_t)strtoul(c1 + 1, NULL, 0);
+					{	const char *h = c2 + 1; long n = (long)strlen(h) / 2, i;
+						epbuf[epc] = (unsigned char *)malloc(n ? n : 1);
+						for (i = 0; i < n; i++) {
+							unsigned v; sscanf(h + 2 * i, "%2x", &v);
+							epbuf[epc][i] = (unsigned char)v;
+						}
+						eplen[epc] = n;
+					}
+					epc++;
+				}
+			}
+		}
+		{	int i;
+			for (i = 0; i < epc; i++) {
+				if (epn[i] == dma_seq && ea_mem
+				    && epoff[i] + (size_t)eplen[i] <= ea_size) {
+					memcpy(ea_mem + epoff[i], epbuf[i], (size_t)eplen[i]);
+					printf("[EAPOKE] %ld bytes at EA %#zx after DMA%03ld\n",
+					       eplen[i], epoff[i], dma_seq);
 				}
 			}
 		}
@@ -148,6 +248,7 @@ int g_outbox_n = 0;
 
 void channel_wrch(int ch, int reg)
 {
+	xrec_chan("wr", ch, ctx->pc, ctx->reg[reg][0]);
 	if (!getenv("ANERG_MBOX")) printf("CHANNEL: wrch ch%d r%d\n", ch, reg);
 	u32 r = ctx->reg[reg][0];
 	
@@ -217,6 +318,7 @@ void channel_wrch(int ch, int reg)
 
 void channel_rdch(int ch, int reg)
 {
+	xrec_chan("rd", ch, ctx->pc, 0);
 	taint_chan(ch, reg);
 	printf("CHANNEL: rdch ch%d r%d\n", ch, reg);
 	u32 r;

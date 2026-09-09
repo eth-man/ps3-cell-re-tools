@@ -1186,19 +1186,22 @@ int instr_sfh(u32 rt, u32 ra, u32 rb)
 }
 int instr_sfhi(u32 rt, u32 ra, u32 i10)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)i10; 
 	/* pre transform */
-	
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);i10 = se10(i10);
 	/* show disassembly*/
-	vdbgprintf("sfhi $r%d,$r%d,0x%x\n", rt,ra,i10);
+	vdbgprintf("sfhi $r%d,$r%d,%d\n", rt,ra,i10);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 8; ++i)
+		rth[i] = i10 - rah[i];
+
 	/* post transform */
-	
+	half_to_reg(rt, rth);
 	return stop;
 }
 int instr_sf(u32 rt, u32 ra, u32 rb)
@@ -1370,7 +1373,7 @@ int instr_bgx(u32 rt, u32 ra, u32 rb)
 }
 int instr_mpy(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
@@ -1380,7 +1383,10 @@ int instr_mpy(u32 rt, u32 ra, u32 rb)
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 4; ++i)
+		rtw[i] = (u32)((s32)(s16)(raw[i] & 0xffff) * (s32)(s16)(rbw[i] & 0xffff));
+
 	/* post transform */
 	
 	return stop;
@@ -1605,53 +1611,67 @@ int instr_clz(u32 rt, u32 ra, u32 rb)
 }
 int instr_cntb(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
-	
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);u8 rbb[16]; reg_to_byte(rbb, rb);
 	/* show disassembly*/
 	vdbgprintf("cntb $r%d,$r%d,$r%d\n", rt,ra,rb);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i, j;
+	for (i = 0; i < 16; ++i) {
+		u8 v = rab[i];
+		u8 c = 0;
+		for (j = 0; j < 8; ++j)
+			c += (v >> j) & 1;
+		rtb[i] = c;
+	}
+
 	/* post transform */
-	
+	byte_to_reg(rt, rtb);
 	return stop;
 }
 int instr_fsmb(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
-	
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);u8 rbb[16]; reg_to_byte(rbb, rb);
 	/* show disassembly*/
 	vdbgprintf("fsmb $r%d,$r%d,$r%d\n", rt,ra,rb);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = (raw[0] & (0x8000 >> i)) ? 0xff : 0;
+
 	/* post transform */
-	
+	byte_to_reg(rt, rtb);
 	return stop;
 }
 int instr_fsmh(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
-	
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
 	/* show disassembly*/
 	vdbgprintf("fsmh $r%d,$r%d,$r%d\n", rt,ra,rb);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 8; ++i)
+		rth[i] = (raw[0] & (0x80 >> i)) ? 0xffff : 0;
+
 	/* post transform */
-	
+	half_to_reg(rt, rth);
 	return stop;
 }
 int instr_fsm(u32 rt, u32 ra, u32 rb)
@@ -1698,19 +1718,26 @@ int instr_gbb(u32 rt, u32 ra, u32 rb)
 }
 int instr_gbh(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
-	
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
 	/* show disassembly*/
 	vdbgprintf("gbh $r%d,$r%d,$r%d\n", rt,ra,rb);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	u16 v = 0;
+	for (i = 0; i < 8; ++i)
+		v |= (u16)((rah[i] & 1) << (7 - i));
+	for (i = 0; i < 8; ++i)
+		rth[i] = 0;
+	rth[1] = v;
+
 	/* post transform */
-	
+	half_to_reg(rt, rth);
 	return stop;
 }
 int instr_gb(u32 rt, u32 ra, u32 rb)
@@ -1992,36 +2019,42 @@ int instr_orc(u32 rt, u32 ra, u32 rb)
 }
 int instr_orbi(u32 rt, u32 ra, u32 i10)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)i10; 
 	/* pre transform */
-	
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);
 	/* show disassembly*/
 	vdbgprintf("orbi $r%d,$r%d,0x%x\n", rt,ra,i10);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = rab[i] | i10;
+
 	/* post transform */
-	
+	byte_to_reg(rt, rtb);
 	return stop;
 }
 int instr_orhi(u32 rt, u32 ra, u32 i10)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)i10; 
 	/* pre transform */
-	
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);i10 = se10(i10);
 	/* show disassembly*/
-	vdbgprintf("orhi $r%d,$r%d,0x%x\n", rt,ra,i10);
+	vdbgprintf("orhi $r%d,$r%d,%d\n", rt,ra,i10);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 8; ++i)
+		rth[i] = rah[i] | i10;
+
 	/* post transform */
-	
+	half_to_reg(rt, rth);
 	return stop;
 }
 int instr_ori(u32 rt, u32 ra, u32 i10)
@@ -2047,7 +2080,7 @@ int instr_ori(u32 rt, u32 ra, u32 i10)
 }
 int instr_orx(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
@@ -2057,7 +2090,9 @@ int instr_orx(u32 rt, u32 ra, u32 rb)
 	/* optional trapping */
 	
 	/* body */
-	
+		rtw[0] = raw[0] | raw[1] | raw[2] | raw[3];
+	rtw[1] = rtw[2] = rtw[3] = 0;
+
 	/* post transform */
 	
 	return stop;
@@ -2104,19 +2139,22 @@ int instr_xorbi(u32 rt, u32 ra, u32 i10)
 }
 int instr_xorhi(u32 rt, u32 ra, u32 i10)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)i10; 
 	/* pre transform */
-	
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);i10 = se10(i10);
 	/* show disassembly*/
-	vdbgprintf("xorhi $r%d,$r%d,0x%x\n", rt,ra,i10);
+	vdbgprintf("xorhi $r%d,$r%d,%d\n", rt,ra,i10);
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 8; ++i)
+		rth[i] = rah[i] ^ i10;
+
 	/* post transform */
-	
+	half_to_reg(rt, rth);
 	return stop;
 }
 int instr_xori(u32 rt, u32 ra, u32 i10)
@@ -2141,7 +2179,7 @@ int instr_xori(u32 rt, u32 ra, u32 i10)
 }
 int instr_nand(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
@@ -2151,7 +2189,10 @@ int instr_nand(u32 rt, u32 ra, u32 rb)
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 4; ++i)
+		rtw[i] = ~(raw[i] & rbw[i]);
+
 	/* post transform */
 	
 	return stop;
@@ -2178,7 +2219,7 @@ int instr_nor(u32 rt, u32 ra, u32 rb)
 }
 int instr_eqv(u32 rt, u32 ra, u32 rb)
 {
-	int stop = 1;
+	int stop = 0;
 	/* ignore unused arguments */
 	(void)rt;(void)ra;(void)rb; 
 	/* pre transform */
@@ -2188,7 +2229,10 @@ int instr_eqv(u32 rt, u32 ra, u32 rb)
 	/* optional trapping */
 	
 	/* body */
-	
+		int i;
+	for (i = 0; i < 4; ++i)
+		rtw[i] = ~(raw[i] ^ rbw[i]);
+
 	/* post transform */
 	
 	return stop;
@@ -3017,6 +3061,331 @@ int instr_cgti(u32 rt, u32 ra, u32 i10)
 
 	/* post transform */
 	
+	return stop;
+}
+int instr_cgtb(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);u8 rbb[16]; reg_to_byte(rbb, rb);
+	/* show disassembly*/
+	vdbgprintf("cgtb $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = ((s8)rab[i] > (s8)rbb[i]) ? 0xff : 0;
+
+	/* post transform */
+	byte_to_reg(rt, rtb);
+	return stop;
+}
+int instr_cgth(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
+	/* show disassembly*/
+	vdbgprintf("cgth $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 8; ++i)
+		rth[i] = ((s16)rah[i] > (s16)rbh[i]) ? 0xffff : 0;
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_cgtbi(u32 rt, u32 ra, u32 i10)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)i10; 
+	/* pre transform */
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);i10 = se10(i10);
+	/* show disassembly*/
+	vdbgprintf("cgtbi $r%d,$r%d,%d\n", rt,ra,i10);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = ((s8)rab[i] > (s8)i10) ? 0xff : 0;
+
+	/* post transform */
+	byte_to_reg(rt, rtb);
+	return stop;
+}
+int instr_shlh(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
+	/* show disassembly*/
+	vdbgprintf("shlh $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 8; ++i) {
+		unsigned sh = rbh[i] & 0x1f;
+		rth[i] = (sh < 16) ? (u16)(rah[i] << sh) : 0;
+	}
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_shlhi(u32 rt, u32 ra, u32 i7)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)i7; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);
+	/* show disassembly*/
+	vdbgprintf("shlhi $r%d,$r%d,0x%x\n", rt,ra,i7);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	unsigned sh = i7 & 0x1f;
+	for (i = 0; i < 8; ++i)
+		rth[i] = (sh < 16) ? (u16)(rah[i] << sh) : 0;
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_rot(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	
+	/* show disassembly*/
+	vdbgprintf("rot $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 4; ++i) {
+		unsigned sh = rbw[i] & 31;
+		rtw[i] = sh ? ((raw[i] << sh) | (raw[i] >> (32 - sh))) : raw[i];
+	}
+
+	/* post transform */
+	
+	return stop;
+}
+int instr_roth(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
+	/* show disassembly*/
+	vdbgprintf("roth $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 8; ++i) {
+		unsigned sh = rbh[i] & 15;
+		rth[i] = sh ? (u16)((rah[i] << sh) | (rah[i] >> (16 - sh))) : rah[i];
+	}
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_rothi(u32 rt, u32 ra, u32 i7)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)i7; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);
+	/* show disassembly*/
+	vdbgprintf("rothi $r%d,$r%d,0x%x\n", rt,ra,i7);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	unsigned sh = i7 & 15;
+	for (i = 0; i < 8; ++i)
+		rth[i] = sh ? (u16)((rah[i] << sh) | (rah[i] >> (16 - sh))) : rah[i];
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_rothm(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
+	/* show disassembly*/
+	vdbgprintf("rothm $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 8; ++i) {
+		unsigned sh = (0 - rbh[i]) & 0x1f;
+		rth[i] = (sh < 16) ? (u16)(rah[i] >> sh) : 0;
+	}
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_rotmah(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);u16 rbh[8]; reg_to_half(rbh, rb);
+	/* show disassembly*/
+	vdbgprintf("rotmah $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	for (i = 0; i < 8; ++i) {
+		unsigned sh = (0 - rbh[i]) & 0x1f;
+		if (sh > 15)
+			sh = 15;
+		rth[i] = (u16)((s16)rah[i] >> sh);
+	}
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_rotmahi(u32 rt, u32 ra, u32 i7)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)i7; 
+	/* pre transform */
+	u16 rth[8]; reg_to_half(rth, rt);u16 rah[8]; reg_to_half(rah, ra);
+	/* show disassembly*/
+	vdbgprintf("rotmahi $r%d,$r%d,0x%x\n", rt,ra,i7);
+	/* optional trapping */
+	
+	/* body */
+		int i;
+	unsigned sh = (0 - i7) & 0x1f;
+	if (sh > 15)
+		sh = 15;
+	for (i = 0; i < 8; ++i)
+		rth[i] = (u16)((s16)rah[i] >> sh);
+
+	/* post transform */
+	half_to_reg(rt, rth);
+	return stop;
+}
+int instr_rotqbi(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u1 rtB[128]; reg_to_Bits(rtB, rt);u1 raB[128]; reg_to_Bits(raB, ra);u1 rbB[128]; reg_to_Bits(rbB, rb);
+	/* show disassembly*/
+	vdbgprintf("rotqbi $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int shift_count = rbwp & 7;
+
+	int i;
+	for (i = 0; i < 128; ++i)
+		rtB[i] = raB[(i + shift_count) & 127];
+
+	/* post transform */
+	Bits_to_reg(rt, rtB);
+	return stop;
+}
+int instr_shlqbybi(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);u8 rbb[16]; reg_to_byte(rbb, rb);
+	/* show disassembly*/
+	vdbgprintf("shlqbybi $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int shift = (rbw[0] >> 3) & 0x1F;
+
+	int i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = (i + shift) < 16 ? rab[i + shift] : 0;
+
+	/* post transform */
+	byte_to_reg(rt, rtb);
+	return stop;
+}
+int instr_rotqbybi(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);u8 rbb[16]; reg_to_byte(rbb, rb);
+	/* show disassembly*/
+	vdbgprintf("rotqbybi $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		int shift = (rbw[0] >> 3) & 0xF;
+
+	int i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = rab[(i + shift) & 15];
+
+	/* post transform */
+	byte_to_reg(rt, rtb);
+	return stop;
+}
+int instr_rotqmbybi(u32 rt, u32 ra, u32 rb)
+{
+	int stop = 0;
+	/* ignore unused arguments */
+	(void)rt;(void)ra;(void)rb; 
+	/* pre transform */
+	u8 rtb[16]; reg_to_byte(rtb, rt);u8 rab[16]; reg_to_byte(rab, ra);u8 rbb[16]; reg_to_byte(rbb, rb);
+	/* show disassembly*/
+	vdbgprintf("rotqmbybi $r%d,$r%d,$r%d\n", rt,ra,rb);
+	/* optional trapping */
+	
+	/* body */
+		u32 s = (0 - (rbw[0] >> 3)) & 0x1F;
+
+	u32 i;
+	for (i = 0; i < 16; ++i)
+		rtb[i] = (i >= s) ? rab[i - s] : 0;
+
+	/* post transform */
+	byte_to_reg(rt, rtb);
 	return stop;
 }
 

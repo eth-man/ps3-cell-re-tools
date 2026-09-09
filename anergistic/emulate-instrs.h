@@ -152,6 +152,21 @@ int instr_clgthi(u32 rt, u32 ra, u32 i10);
 int instr_clgth(u32 rt, u32 ra, u32 rb);
 int instr_clgtbi(u32 rt, u32 ra, u32 i10);
 int instr_cgti(u32 rt, u32 ra, u32 i10);
+int instr_cgtb(u32 rt, u32 ra, u32 rb);
+int instr_cgth(u32 rt, u32 ra, u32 rb);
+int instr_cgtbi(u32 rt, u32 ra, u32 i10);
+int instr_shlh(u32 rt, u32 ra, u32 rb);
+int instr_shlhi(u32 rt, u32 ra, u32 i7);
+int instr_rot(u32 rt, u32 ra, u32 rb);
+int instr_roth(u32 rt, u32 ra, u32 rb);
+int instr_rothi(u32 rt, u32 ra, u32 i7);
+int instr_rothm(u32 rt, u32 ra, u32 rb);
+int instr_rotmah(u32 rt, u32 ra, u32 rb);
+int instr_rotmahi(u32 rt, u32 ra, u32 i7);
+int instr_rotqbi(u32 rt, u32 ra, u32 rb);
+int instr_shlqbybi(u32 rt, u32 ra, u32 rb);
+int instr_rotqbybi(u32 rt, u32 ra, u32 rb);
+int instr_rotqmbybi(u32 rt, u32 ra, u32 rb);
 
 
 enum spu_instr_type {
@@ -258,14 +273,14 @@ static const struct {
 	{SPU_INSTR_NONE, NULL}, // aa000000
 	{SPU_INSTR_NONE, NULL}, // ac000000
 	{SPU_INSTR_NONE, NULL}, // ae000000
-	{SPU_INSTR_NONE, NULL}, // b0000000
+	{SPU_INSTR_RR, instr_rot}, // b0000000
 	{SPU_INSTR_RR, instr_rotm}, // b2000000
 	{SPU_INSTR_RR, instr_rotma}, // b4000000
 	{SPU_INSTR_RR, instr_shl}, // b6000000
-	{SPU_INSTR_NONE, NULL}, // b8000000
-	{SPU_INSTR_NONE, NULL}, // ba000000
-	{SPU_INSTR_NONE, NULL}, // bc000000
-	{SPU_INSTR_NONE, NULL}, // be000000
+	{SPU_INSTR_RR, instr_roth}, // b8000000
+	{SPU_INSTR_RR, instr_rothm}, // ba000000
+	{SPU_INSTR_RR, instr_rotmah}, // bc000000
+	{SPU_INSTR_RR, instr_shlh}, // be000000
 	{SPU_INSTR_RI10, instr_sfi}, // c0000000
 	{SPU_INSTR_RI10, instr_sfi}, // c2000000
 	{SPU_INSTR_RI10, instr_sfi}, // c4000000
@@ -294,10 +309,10 @@ static const struct {
 	{SPU_INSTR_RI7, instr_rotmi}, // f2000000
 	{SPU_INSTR_RI7, instr_rotmai}, // f4000000
 	{SPU_INSTR_RI7, instr_shli}, // f6000000
-	{SPU_INSTR_NONE, NULL}, // f8000000
+	{SPU_INSTR_RI7, instr_rothi}, // f8000000
 	{SPU_INSTR_RI7, instr_rothmi}, // fa000000
-	{SPU_INSTR_NONE, NULL}, // fc000000
-	{SPU_INSTR_NONE, NULL}, // fe000000
+	{SPU_INSTR_RI7, instr_rotmahi}, // fc000000
+	{SPU_INSTR_RI7, instr_shlhi}, // fe000000
 	{SPU_INSTR_RI18, instr_hbra}, // 100000000
 	{SPU_INSTR_RI18, instr_hbra}, // 102000000
 	{SPU_INSTR_RI18, instr_hbra}, // 104000000
@@ -630,10 +645,10 @@ static const struct {
 	{SPU_INSTR_NONE, NULL}, // 392000000
 	{SPU_INSTR_NONE, NULL}, // 394000000
 	{SPU_INSTR_NONE, NULL}, // 396000000
-	{SPU_INSTR_NONE, NULL}, // 398000000
-	{SPU_INSTR_NONE, NULL}, // 39a000000
+	{SPU_INSTR_RR, instr_rotqbybi}, // 398000000
+	{SPU_INSTR_RR, instr_rotqmbybi}, // 39a000000
 	{SPU_INSTR_NONE, NULL}, // 39c000000
-	{SPU_INSTR_NONE, NULL}, // 39e000000
+	{SPU_INSTR_RR, instr_shlqbybi}, // 39e000000
 	{SPU_INSTR_NONE, NULL}, // 3a0000000
 	{SPU_INSTR_NONE, NULL}, // 3a2000000
 	{SPU_INSTR_NONE, NULL}, // 3a4000000
@@ -642,7 +657,7 @@ static const struct {
 	{SPU_INSTR_RR, instr_chx}, // 3aa000000
 	{SPU_INSTR_RR, instr_cwx}, // 3ac000000
 	{SPU_INSTR_RR, instr_cdx}, // 3ae000000
-	{SPU_INSTR_NONE, NULL}, // 3b0000000
+	{SPU_INSTR_RR, instr_rotqbi}, // 3b0000000
 	{SPU_INSTR_RR, instr_rotqmbi}, // 3b2000000
 	{SPU_INSTR_NONE, NULL}, // 3b4000000
 	{SPU_INSTR_RR, instr_shlqbi}, // 3b6000000
@@ -754,7 +769,7 @@ static const struct {
 	{SPU_INSTR_NONE, NULL}, // 48a000000
 	{SPU_INSTR_NONE, NULL}, // 48c000000
 	{SPU_INSTR_NONE, NULL}, // 48e000000
-	{SPU_INSTR_NONE, NULL}, // 490000000
+	{SPU_INSTR_RR, instr_cgth}, // 490000000
 	{SPU_INSTR_RR, instr_eqv}, // 492000000
 	{SPU_INSTR_NONE, NULL}, // 494000000
 	{SPU_INSTR_NONE, NULL}, // 496000000
@@ -762,7 +777,7 @@ static const struct {
 	{SPU_INSTR_NONE, NULL}, // 49a000000
 	{SPU_INSTR_NONE, NULL}, // 49c000000
 	{SPU_INSTR_NONE, NULL}, // 49e000000
-	{SPU_INSTR_NONE, NULL}, // 4a0000000
+	{SPU_INSTR_RR, instr_cgtb}, // 4a0000000
 	{SPU_INSTR_NONE, NULL}, // 4a2000000
 	{SPU_INSTR_NONE, NULL}, // 4a4000000
 	{SPU_INSTR_RR, instr_sumb}, // 4a6000000
@@ -794,14 +809,14 @@ static const struct {
 	{SPU_INSTR_RI10, instr_cgthi}, // 4da000000
 	{SPU_INSTR_RI10, instr_cgthi}, // 4dc000000
 	{SPU_INSTR_RI10, instr_cgthi}, // 4de000000
-	{SPU_INSTR_NONE, NULL}, // 4e0000000
-	{SPU_INSTR_NONE, NULL}, // 4e2000000
-	{SPU_INSTR_NONE, NULL}, // 4e4000000
-	{SPU_INSTR_NONE, NULL}, // 4e6000000
-	{SPU_INSTR_NONE, NULL}, // 4e8000000
-	{SPU_INSTR_NONE, NULL}, // 4ea000000
-	{SPU_INSTR_NONE, NULL}, // 4ec000000
-	{SPU_INSTR_NONE, NULL}, // 4ee000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4e0000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4e2000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4e4000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4e6000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4e8000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4ea000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4ec000000
+	{SPU_INSTR_RI10, instr_cgtbi}, // 4ee000000
 	{SPU_INSTR_NONE, NULL}, // 4f0000000
 	{SPU_INSTR_NONE, NULL}, // 4f2000000
 	{SPU_INSTR_NONE, NULL}, // 4f4000000

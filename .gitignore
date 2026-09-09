@@ -14,3 +14,10 @@ tests/_out/
 *.bin
 *.pup
 *.PUP
+
+# anergistic build artifacts. emulate-instrs.{c,h} are GENERATED from
+# `instrs` + instr-generate.py; committing them would let the generated copy
+# drift from its source. The .in templates and `instrs` are the real sources.
+anergistic/*.o
+anergistic/anergistic
+*.o
