@@ -21,3 +21,9 @@ tests/_out/
 anergistic/*.o
 anergistic/anergistic
 *.o
+
+# anergistic writes a 256 KB Local Store dump (ls.b) on exit. It is derived
+# from a Sony module and must never be committed. The leak gate refuses it by
+# type as well; this stops it being staged in the first place.
+ls.b
+*.b

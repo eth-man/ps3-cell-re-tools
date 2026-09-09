@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import shutil
+import re
 import subprocess
 import sys
 import tempfile
@@ -85,7 +86,7 @@ def run_lv1procs(cmd, artifacts):
             break
     if not lv1:
         return None, "no lv1.elf in the corpus"
-    tool = os.path.join(ROOT, "lv1procs.py")
+    tool = os.path.join(ROOT, "harnesses", "lv1procs.py")
     if not os.path.isfile(tool):
         return None, "lv1procs.py is not in this repository"
     # NEVER write extracted Sony images into the repository tree. The first
@@ -111,6 +112,65 @@ def missing_names(assertion, measured):
     except SyntaxError as exc:
         return None, f"unparseable assertion: {exc}"
     return [n for n in code.co_names if n not in measured], None
+
+
+
+@runner("svtest")
+def run_svtest(cmd, artifacts):
+    """svtest <version> <len-hex> <marker-hex> -> pc, stop."""
+    parts = cmd.split()
+    if len(parts) < 4:
+        return None, f"cannot parse: {cmd}"
+    _, ver, length, marker = parts[:4]
+    length = length[2:] if length.lower().startswith("0x") else length
+    sh = os.path.join(ROOT, "harnesses", "svtest.sh")
+    if not os.path.isfile(sh):
+        return None, "harnesses/svtest.sh is not in this repository"
+    env = dict(os.environ)
+    env.setdefault("PS3_CORPUS", os.environ.get(ARTIFACT_ENV, ""))
+    r = subprocess.run(["bash", sh, ver, length, marker],
+                       capture_output=True, text=True, timeout=600, env=env)
+    out = r.stdout + r.stderr
+    if r.returncode == 2:
+        return None, out.strip().splitlines()[0] if out.strip() else "setup"
+    pc = re.search(r"pc:\s*([0-9a-f]+)", out)
+    stop = re.search(r"stop instruction reached:\s*([0-9a-f]+)", out)
+    if not pc:
+        return None, f"no pc in output: {out[:120]}"
+    return {"pc": int(pc.group(1), 16),
+            "stop": int(stop.group(1), 16) if stop else None}, None
+
+
+@runner("verifygate")
+def run_verifygate(cmd, artifacts):
+    """verifygate <byte-hex> -> verify: "runs" | "skipped"."""
+    parts = cmd.split()
+    if len(parts) < 2:
+        return None, f"cannot parse: {cmd}"
+    byte = parts[1]
+    byte = byte[2:] if byte.lower().startswith("0x") else byte
+    byte = byte[-1] if byte.upper().startswith("E") else byte   # 0xE9 -> 9
+    sh = os.path.join(ROOT, "harnesses", "verifygate.sh")
+    if not os.path.isfile(sh):
+        return None, "harnesses/verifygate.sh is not in this repository"
+    env = dict(os.environ)
+    env.setdefault("PS3_CORPUS", os.environ.get(ARTIFACT_ENV, ""))
+    # Pin the version from the expectation's `needs`, never let the harness
+    # pick. A loose match once substituted a 3.56 module for a 4.93 test.
+    ver = "493"
+    for need in artifacts:
+        m = re.search(r"(\d)\.?(\d\d)", str(need))
+        if m:
+            ver = m.group(1) + m.group(2)
+    r = subprocess.run(["bash", sh, "-v", ver, byte], capture_output=True,
+                       text=True, timeout=600, env=env)
+    out = r.stdout + r.stderr
+    if r.returncode == 2:
+        return None, out.strip().splitlines()[0] if out.strip() else "setup"
+    m = re.search(r"verify (runs|skipped)", out)
+    if not m:
+        return None, f"no verdict in output: {out[:120]}"
+    return {"verify": m.group(1)}, None
 
 
 def evaluate(assertion, measured):
