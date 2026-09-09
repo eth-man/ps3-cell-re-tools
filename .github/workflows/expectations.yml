@@ -1,0 +1,61 @@
+name: expectations
+
+# Replays the published results these tools produced, so a pull request can be
+# judged by whether it preserved the record rather than by whether the diff
+# looks reasonable.
+#
+# The record lives in a separate repository. If it is not reachable from here
+# -- a fork, or a private record -- this reports "nothing to check" and passes,
+# rather than failing a contributor for something outside their control.
+#
+# To wire it to a private record, add a repository secret RECORD_TOKEN with
+# read access, and set RECORD_REPO below.
+
+on: [push, pull_request]
+
+env:
+  RECORD_REPO: eth-man/ps3-ai-re
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+
+      # First and alone. This repository is public and the harness handles
+      # decrypted images; a stray artifact must never reach a commit. The
+      # first run of the replay harness wrote seven decrypted lv1 ELFs into
+      # tests/_out and `git add -A` staged them. This is why.
+      - name: leak gate
+        run: python3 tests/leakcheck.py --all
+
+      - name: fetch the expectations, if the record is reachable
+        env:
+          RECORD_TOKEN: ${{ secrets.RECORD_TOKEN }}
+        run: |
+          if [ -z "$RECORD_TOKEN" ]; then
+            echo "::notice::No RECORD_TOKEN. The record is not reachable from"
+            echo "::notice::here, so no published result can be replayed."
+            exit 0
+          fi
+          curl -sf -H "Authorization: token $RECORD_TOKEN" \
+               -H "Accept: application/vnd.github.raw" \
+               "https://api.github.com/repos/$RECORD_REPO/contents/expectations.json" \
+               -o expectations.json \
+            && echo "fetched $(python3 -c 'import json;print(len(json.load(open("expectations.json"))["expectations"]))') expectation(s)" \
+            || echo "::warning::could not fetch expectations.json"
+
+      - name: replay
+        run: python3 tests/replay_expectations.py
+
+      # Public runners hold no firmware and no keys, so most expectations skip.
+      # That is reported, never hidden: a run that checked nothing must not
+      # look like a run that checked everything.
+      - name: what was actually checked
+        if: always()
+        run: |
+          echo "Expectations needing firmware or keys SKIP here by design."
+          echo "Run the full set where the corpus exists:"
+          echo "  PS3_CORPUS=/path/to/corpus python3 tests/replay_expectations.py"

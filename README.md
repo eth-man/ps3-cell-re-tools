@@ -9,6 +9,36 @@ None of this is a jailbreak or a key dump. It is the **measurement rig**: emulat
 it soundly, run the `lv1` hypervisor offline, and diff every result against a second implementation so
 a decode bug shows up as a divergence instead of a silent wrong answer.
 
+
+---
+
+## These tools are responsible for published results
+
+The findings these instruments produced live in a separate record, and each one
+declares what the tool must still do — exact PCs, exact stop codes, exact
+hijack counts:
+
+```
+E-0071-boundary-clean    svtest 4.20 0xE0    pc == 0x00001b70 and stop == 0x010a
+E-0071-boundary-hijack   svtest 4.20 0xE4    pc == 0x0003bee0
+E-0436-positive-control  isofuzz 4.20        hijacks == 11 and coverage >= 598
+E-0436-negative          isofuzz 4.93        hijacks == 0  and coverage >= 636
+E-0129-real-gate         verifygate 0xE9     verify == "skipped"
+```
+
+`tests/replay_expectations.py` replays them, and CI runs it on every pull
+request. So an improvement is judged by whether it preserved the record, not by
+whether the diff reads well — which is what makes patches to a measurement rig
+safe to accept at all.
+
+```sh
+python3 tests/replay_expectations.py --tool anergistic
+```
+
+Expectations needing firmware or keys **skip** on public CI, loudly and
+counted: a run that checked nothing must not look like a run that checked
+everything. See [AGENTS.md](AGENTS.md).
+
 ---
 
 ## The instruments

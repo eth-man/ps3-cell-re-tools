@@ -5,3 +5,12 @@ __pycache__/
 *.orig
 work/
 bench/
+
+# Extracted / decrypted images must never be committed. The replay harness
+# writes to a temp dir; this is the second line of defence.
+tests/_out/
+*.elf
+*.self
+*.bin
+*.pup
+*.PUP
